@@ -1,10 +1,10 @@
 import logger from "./logger"
 import path from "path"
 import fs from "fs-extra"
-import { load } from "cheerio"
+import { load, type CheerioAPI } from "cheerio"
 
 class HTML {
-  private requiredIds: string[] = ["sefu"]
+  private requiredIds: string[] = ["wow"]
 
   create(path: string) {
     return this.parser(path)
@@ -28,17 +28,21 @@ class HTML {
       const missingIds = this.requiredIds.filter(id => !idsFound.includes(id));
 
       if (missingIds.length > 0 || !idsFound.length) {
-        logger.error(`Missing IDs: ${missingIds.join(', ')}`);
+        logger.debug().error(`Missing IDs: ${missingIds.join(', ')}`);
+        throw new Error("Missing IDs")
       } else {
-        logger.success('All required IDs are present in the HTML.');
+        logger.debug().success('All required IDs are present in the HTML.');
       }
 
       return true 
     } catch (error) {
-      logger.error(`An error occured`)
-
+      logger.debug().error(`An error occured: ${error}`)
       return false
     }
+  }
+
+  async editor($: CheerioAPI) {
+
   }
 
 }

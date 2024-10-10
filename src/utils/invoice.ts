@@ -1,14 +1,44 @@
-import inquirer from "inquirer";
-import { INVOICE_PATH, DEFAULT_PATH, DEFAULT_DIR } from "..";
+import inquirer, { type Question } from "inquirer";
+import { INVOICE_PATH, DEFAULT_PATH, DEFAULT_DIR, mainMenu } from "..";
 import logger from "./logger";
 import fs from "fs-extra";
 import path from "path"
 import HTML from "./html";
 
-class Invoice {
-  async createInvoice() {
-    try {
+interface DefaultOption<T extends 'input' | 'number' = 'input'> {
+  type: T
+  message: string
+  validate: (value: T extends 'number' ? number : string) => void
+} 
 
+interface DefaultOptionPrompts {
+  sortCode: DefaultOption
+  bankNum: DefaultOption<"number"> 
+  fullName: DefaultOption
+}
+
+class Invoice {
+
+  defaultOptionPrompts : DefaultOptionPrompts = {
+    sortCode:  {
+      type: "input",
+      message: "Enter your sort code",
+      validate: val => val.length == 8 && val.includes('-') && !isNaN(parseInt(val.replaceAll('-', '')))
+    },
+    bankNum:  {
+      type: "number",
+      message: "Enter your bank account number",
+      validate: num => num.toString().length == 8
+    },
+    fullName:  {
+      type: "input",
+      message: "Enter your fullname",
+      validate: str => str.includes(' ') && str.length > 5
+    },
+  }
+
+  async createInvoice(useDefaultValues = true) {
+    try {
       const templatePath = path.dirname(DEFAULT_PATH);
       const templates = fs.readdirSync(templatePath).filter(file => file.endsWith(".html")).map(f => `${DEFAULT_DIR}${f}`)
 
@@ -61,10 +91,15 @@ class Invoice {
         items.push(itemDetails);
       }
 
+      const config = fs.readJsonSync(DEFAULT_PATH);
+
       const invoice = {
         template: template,
         companyName: answers.companyName,
         items,
+        sortCode: useDefaultValues && config['default_values']?.['sortCode'] ? config['default_values']['sortcode'] : this.askForDefault('sortCode'),
+        fullName: useDefaultValues && config['default_values']?.['fullName'] ? config['default_values']['fullName'] : this.askForDefault('fullName'),
+        bankNum: useDefaultValues && config['default_values']?.['bankNum'] ? config['default_values']['bankNum'] : this.askForDefault('bankNum'),
         createdAt: new Date().toISOString(),
       };
 
@@ -78,8 +113,7 @@ class Invoice {
 
       logger.info("Invoice successfully created!");
     } catch (e) {
-
-      logger.error('Got an error')
+      return mainMenu()
 
     }
   }
@@ -93,6 +127,50 @@ class Invoice {
       logger.info("Invoice History:");
       console.log(invoiceHistory);
     }
+  }
+
+  async askForDefault(key: keyof DefaultOptionPrompts): Promise<string> {
+      // @ts-ignore
+    const value = await inquirer.prompt([
+      {
+        name: key,
+        ...this.defaultOptionPrompts[key]
+      }
+    ])
+
+    logger.debug().info(`value: ${JSON.stringify(value)}, key: ${key}, keyval: ${value[key]}`)
+
+    return value[key]
+  }
+
+
+  async setupDefaultValues(args?: string[]) {
+
+    logger.debug().info(`Args: ${JSON.stringify(args)}`)
+
+    const config = fs.readJsonSync(DEFAULT_PATH)
+
+    if (args?.length) {
+      args.forEach(async arg => {
+        const key = Object.keys(this.defaultOptionPrompts).find(o => o.toLowerCase() == arg)
+        if (!key) return logger.error(`Can't edit a value that doesn't exist: ${arg}`)
+
+        logger.info(key)
+
+        config['default_values'] = {
+          [key]: await this.askForDefault(key as keyof DefaultOptionPrompts)
+        }
+      })
+    }
+    else {
+      config['default_values'] = {
+        fullName: await this.askForDefault('fullName'),
+        bankNum: await this.askForDefault('bankNum'),
+        sortCode: await this.askForDefault('sortCode') 
+      }
+    }
+
+    fs.writeJsonSync(DEFAULT_PATH, config, { spaces: 2 })
   }
 }
 
