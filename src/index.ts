@@ -3,7 +3,7 @@ import { Command } from "commander";
 import logger from "./utils/logger";
 import Invoice from "./utils/invoice";
 import minimist from "minimist"
-import { initConfig, openConfigDirectory, openConfigurationFile, timeout } from "./utils";
+import { initConfig, openConfigDirectory, openConfigurationFile, openInvoicesDirectory } from "./utils";
 import * as os from "os"
 import inquirer from "inquirer";
 
@@ -83,6 +83,11 @@ const commands = [
     name: "cd",
     description: "Open the configuration directory",
     action: openConfigDirectory
+  },
+  {
+    name: "invoices",
+    description: "Open the configuration directory",
+    action: openInvoicesDirectory
   },
   {
     name: "defaults",

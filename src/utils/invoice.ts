@@ -9,28 +9,28 @@ interface DefaultOption<T extends 'input' | 'number' = 'input'> {
   type: T
   message: string
   validate: (value: T extends 'number' ? number : string) => void
-} 
+}
 
 interface DefaultOptionPrompts {
   sortCode: DefaultOption
-  bankNum: DefaultOption<"number"> 
+  bankNum: DefaultOption<"number">
   fullName: DefaultOption
 }
 
 class Invoice {
 
-  defaultOptionPrompts : DefaultOptionPrompts = {
-    sortCode:  {
+  defaultOptionPrompts: DefaultOptionPrompts = {
+    sortCode: {
       type: "input",
       message: "Enter your sort code",
       validate: val => val.length == 8 && val.includes('-') && !isNaN(parseInt(val.replaceAll('-', '')))
     },
-    bankNum:  {
+    bankNum: {
       type: "number",
       message: "Enter your bank account number",
       validate: num => num.toString().length == 8
     },
-    fullName:  {
+    fullName: {
       type: "input",
       message: "Enter your fullname",
       validate: str => str.includes(' ') && str.length > 5
@@ -130,7 +130,7 @@ class Invoice {
   }
 
   async askForDefault(key: keyof DefaultOptionPrompts): Promise<string> {
-      // @ts-ignore
+    // @ts-ignore
     const value = await inquirer.prompt([
       {
         name: key,
@@ -145,32 +145,36 @@ class Invoice {
 
 
   async setupDefaultValues(args?: string[]) {
-
     logger.debug().info(`Args: ${JSON.stringify(args)}`)
 
     const config = fs.readJsonSync(DEFAULT_PATH)
 
     if (args?.length) {
-      args.forEach(async arg => {
-        const key = Object.keys(this.defaultOptionPrompts).find(o => o.toLowerCase() == arg)
-        if (!key) return logger.error(`Can't edit a value that doesn't exist: ${arg}`)
-
-        logger.info(key)
+      for (const arg of args) {
+        const key = Object.keys(this.defaultOptionPrompts).find(o => o.toLowerCase() === arg)
+        if (!key) {
+          logger.error(`Can't edit a value that doesn't exist: ${arg}`)
+          continue
+        }
 
         config['default_values'] = {
+          ...config['default_values'],  // Preserve existing default values
           [key]: await this.askForDefault(key as keyof DefaultOptionPrompts)
         }
-      })
-    }
-    else {
+      }
+
+      fs.writeJsonSync(DEFAULT_PATH, config, { spaces: 2 })
+      process.exit(0)
+    } else {
       config['default_values'] = {
         fullName: await this.askForDefault('fullName'),
         bankNum: await this.askForDefault('bankNum'),
-        sortCode: await this.askForDefault('sortCode') 
+        sortCode: await this.askForDefault('sortCode')
       }
-    }
 
-    fs.writeJsonSync(DEFAULT_PATH, config, { spaces: 2 })
+      fs.writeJsonSync(DEFAULT_PATH, config, { spaces: 2 })
+      process.exit(0)
+    }
   }
 }
 

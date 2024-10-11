@@ -24,6 +24,18 @@ export async function openConfigurationFile() {
   })
 }
 
+export async function openInvoicesDirectory() {
+  const config = fs.readJsonSync(DEFAULT_PATH)
+  try {
+    await open(config.invoices_path);
+    logger.info(`Opened configuration directory: ${config.invoices_path}`);
+  } catch (error) {
+    logger.error("Error opening configuration directory")
+  }
+
+  process.exit(0)
+}
+
 export async function openConfigDirectory() {
   const configDir = path.dirname(DEFAULT_PATH);
   try {
@@ -105,4 +117,29 @@ export function configSetup(configPath: string) {
   return fs.existsSync(configPath);
 }
 
+export function deepFindByKey(obj: any, keyToFind: string) {
+  if (typeof obj !== 'object' || obj === null) {
+    return undefined;
+  }
 
+  // Check if the current object contains the key
+  if (obj.hasOwnProperty(keyToFind)) {
+    return obj[keyToFind];
+  }
+
+  // Recursively search in each nested object
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const value = obj[key];
+
+      if (typeof value === 'object') {
+        const result : any = deepFindByKey(value, keyToFind);
+        if (result !== undefined) {
+          return result;
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
