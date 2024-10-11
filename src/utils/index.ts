@@ -3,11 +3,11 @@ import { exec } from "child_process"
 import * as os from "os"
 import path from "path"
 import logger from "./logger"
-import { DEFAULT_INVOICES_DIR, DEFAULT_PATH, mainMenu } from ".."
 import inquirer from "inquirer"
 import fs from "fs-extra"
 import type { Config } from "../types/types"
 import axios from "axios"
+import { DEFAULT_INVOICES_DIR, DEFAULT_PATH } from "./constants"
 
 export const timeout = async (t: number) => new Promise(r => setTimeout(r, t))
 
@@ -173,7 +173,7 @@ export function getConfig(): Config {
 
 export async function getVersion(): Promise<string> {
   try {
-    const res = await axios.get(`https://api/.github.com/repos/itzcodex24/cli/contents/package.json`)
+    const res = await axios.get(`https://api.github.com/repos/itzcodex24/cli/contents/package.json`)
     if (res.data && res.data.content) {
       const jsonPackage = JSON.parse(Buffer.from(res.data.content, 'base64').toString('utf-8'))
 

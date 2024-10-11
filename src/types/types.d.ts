@@ -7,6 +7,7 @@ export interface Config {
 }
 
 export interface DefaultOption<T extends 'input' | 'number' = 'input'> {
+  required: boolean;
   type: T
   message: string
   validate: (value: T extends 'number' ? number : string) => void
@@ -32,8 +33,8 @@ export interface DefaultOptionPrompts {
   fullName: DefaultOption
   address: DefaultOption
   postcode: DefaultOption
+  email: DefaultOption
   logo?: DefaultOption
-  email?: DefaultOption
 }
 
 export interface InvoiceItem {

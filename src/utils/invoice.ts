@@ -1,5 +1,4 @@
 import inquirer from "inquirer";
-import { INVOICE_PATH, DEFAULT_PATH, DEFAULT_DIR, mainMenu } from "..";
 import logger from "./logger";
 import fs from "fs-extra";
 import path from "path"
@@ -7,53 +6,10 @@ import HTML from "./html";
 import chalk from "chalk";
 import type { DefaultOptionPrompts, TInvoice } from "../types/types";
 import { getConfig } from ".";
+import { DEFAULT_DIR, DEFAULT_OPTION_PROMPTS, DEFAULT_PATH, INVOICE_PATH } from "./constants";
+import { mainMenu } from "..";
 
 class Invoice {
-
-  defaultOptionPrompts: DefaultOptionPrompts = {
-    sortCode: {
-      type: "input",
-      message: "Enter your sort code",
-      validate: val => {
-        const sortCodePattern = /^\d{2}-\d{2}-\d{2}$/;
-        return sortCodePattern.test(val) || "Sort code must be in the format XX-XX-XX (e.g., 12-34-56)";
-      }
-    },
-    bankNum: {
-      type: "number",
-      message: "Enter your bank account number",
-      validate: num => {
-        const bankNumStr = num.toString();
-        return /^\d{8}$/.test(bankNumStr) || "Bank account number must be exactly 8 digits long";
-      }
-    },
-    fullName: {
-      type: "input",
-      message: "Enter your full name",
-      validate: str => {
-        const fullNamePattern = /^[a-zA-Z]+([ '-][a-zA-Z]+)+$/;
-        return fullNamePattern.test(str) || "Full name must contain at least two parts (e.g., John Doe) and only letters, spaces, hyphens, or apostrophes";
-      }
-    },
-    address: {
-      type: "input",
-      message: "Enter your line of address",
-      validate: str => {
-        const addressPattern = /^[a-zA-Z0-9\s,.\-]+$/;
-        return (str.length >= 5 && addressPattern.test(str)) || "Address must be at least 5 characters long and can contain letters, numbers, spaces, commas, and periods.";
-      }
-    },
-    postcode: {
-      type: "input",
-      message: "Enter your postcode",
-      validate: str => {
-        const postcodePattern = /^([A-Z]{1,2}\d{1,2}|[A-Z]{1,2}\d{1,2}[A-Z]?)\s?\d[A-Z]{2}$/i;
-        return postcodePattern.test(str) || "Postcode must be in a valid format (e.g., AB1 2CD).";
-      }
-    }
-    
-  };
-
   async createInvoice(useDefaultValues = true) {
     try {
       const templatePath = path.dirname(DEFAULT_PATH);
@@ -167,7 +123,7 @@ class Invoice {
     const value = await inquirer.prompt([
       {
         name: key,
-        ...this.defaultOptionPrompts[key]
+        ...DEFAULT_OPTION_PROMPTS[key]
       }
     ])
     return value[key]
@@ -176,10 +132,10 @@ class Invoice {
   async setupDefaultValues(args?: string[]) {
     const config = getConfig()
 
-    args = args?.length ? args : Object.keys(this.defaultOptionPrompts).map(o => o.toLowerCase())
+    args = args?.length ? args : Object.entries(DEFAULT_OPTION_PROMPTS).filter(([_, v]) => v.required).map(([k]) => k)
 
     for (const arg of args) {
-      const key = Object.keys(this.defaultOptionPrompts).find(o => o.toLowerCase() === arg)
+      const key = Object.keys(DEFAULT_OPTION_PROMPTS).find(o => o.toLowerCase() === arg)
       if (!key) {
         logger.error(`Can't edit a value that doesn't exist: ${arg}`)
         continue

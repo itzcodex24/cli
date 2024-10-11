@@ -1,19 +1,12 @@
-import path from "path";
 import fs from "fs-extra"
 import { Command } from "commander";
 import logger from "./utils/logger";
 import Invoice from "./utils/invoice";
 import minimist from "minimist"
 import { getConfig, getInvoiceDirectory, getVersion, openConfigDirectory, openConfigurationFile, openInvoicesDirectory, timeout } from "./utils";
-import * as os from "os"
 import inquirer from "inquirer";
 import type { Config } from "./types/types";
-
-export const DEFAULT_DIR = path.join(os.homedir(), ".config", "icli/");
-export const DEFAULT_INVOICES_DIR = path.join(os.homedir(), "Documents", "Invoices/")
-export const DEFAULT_PATH = path.join(os.homedir(), ".config", "icli/icli.json");
-export const INVOICE_PATH = path.join(path.dirname(DEFAULT_PATH), "invoices.json");
-
+import { DEFAULT_OPTION_PROMPTS, DEFAULT_PATH } from "./utils/constants";
 
 async function init() {
 
@@ -47,7 +40,8 @@ async function init() {
   await timeout(200)
 
   let unset = []
-  for (const defaultOption of Object.keys(Invoice.defaultOptionPrompts)) {
+  const requiredValues = Object.entries(DEFAULT_OPTION_PROMPTS).filter(([_, v]) => v.required).map(([k]) => k)
+  for (const defaultOption of requiredValues) {
     if (config?.default_values?.[defaultOption as keyof typeof config.default_values]) continue
 
     unset.push(defaultOption.toLowerCase())
