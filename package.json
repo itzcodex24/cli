@@ -1,8 +1,17 @@
 {
-  "name": "cli",
+  "name": "invoice-cli",
+  "version": "1.0.0",
+  "main": "build/index.js",
+  "bin": {
+    "invoice-cli": "./build/index.js"
+  },
+  "author": "itzcodex24",
+  "license": "MIT",
   "module": "src/index.ts",
   "type": "module",
   "scripts": {
+    "build": "bun build src/index.ts --target node --outdir ./build",
+    "start": "node build/index.js",
     "dev": "bun --watch src/index.ts"
   },
   "devDependencies": {
