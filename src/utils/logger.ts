@@ -1,11 +1,10 @@
 import chalk from 'chalk';
 
 class Logger {
-  private isDebugMode: boolean = false;  
+  private isDebugMode: boolean = false;
   private inDebugContext: boolean = false;
 
-  constructor() {
-  }
+  constructor() {}
 
   setDebugMode(isDebug: boolean): void {
     this.isDebugMode = isDebug;
@@ -17,17 +16,52 @@ class Logger {
   }
 
   private formatMessage(level: string, colorFn: (msg: string) => string, ...messages: string[]): string {
-    return `${chalk.gray(`[CLI]`)} ${colorFn(`[${level}]`)} ${messages.join(' ')}`;
+    let message = `${chalk.gray(`[CLI]`)} ${colorFn(`[${level}]`)} ${messages.join(' ')}`;
+    
+    // If in debug mode, append the caller details
+    if (this.isDebugMode) {
+      const callerDetails = this.getCallerDetails();
+      message += ` ${chalk.gray(`(${callerDetails})`)}`;
+    }
+
+    return message;
   }
 
   private shouldLog(): boolean {
     if (this.inDebugContext && !this.isDebugMode) {
-      this.inDebugContext = false; 
-      return false; 
+      this.inDebugContext = false;
+      return false;
     }
 
     this.inDebugContext = false;
-    return true; 
+    return true;
+  }
+
+  private getCallerDetails(): string {
+    const originalPrepareStackTrace = Error.prepareStackTrace;
+    const error = new Error();
+    Error.prepareStackTrace = (_, stack) => stack;
+
+    const stack = (error.stack as unknown) as NodeJS.CallSite[];
+    Error.prepareStackTrace = originalPrepareStackTrace;
+
+    let caller;
+    for (let i = 2; i < stack.length; i++) {
+      const fileName = stack[i].getFileName();
+      if (fileName && !fileName.includes(__filename)) {
+        caller = stack[i];
+        break;
+      }
+    }
+
+    if (caller) {
+      const fileName = caller.getFileName();
+      const lineNumber = caller.getLineNumber();
+      const columnNumber = caller.getColumnNumber();
+      return `${fileName}:${lineNumber}:${columnNumber}`;
+    } else {
+      return 'unknown';
+    }
   }
 
   error(...messages: string[]): void {
@@ -55,7 +89,7 @@ class Logger {
   }
 
   throw(...messages: string[]): never {
-    this.error(...messages); 
+    this.error(...messages);
     throw new Error(messages.join(' '));
   }
 }

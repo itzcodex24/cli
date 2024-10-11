@@ -1,21 +1,12 @@
-import inquirer, { type Question } from "inquirer";
+import inquirer from "inquirer";
 import { INVOICE_PATH, DEFAULT_PATH, DEFAULT_DIR, mainMenu } from "..";
 import logger from "./logger";
 import fs from "fs-extra";
 import path from "path"
 import HTML from "./html";
-
-interface DefaultOption<T extends 'input' | 'number' = 'input'> {
-  type: T
-  message: string
-  validate: (value: T extends 'number' ? number : string) => void
-}
-
-interface DefaultOptionPrompts {
-  sortCode: DefaultOption
-  bankNum: DefaultOption<"number">
-  fullName: DefaultOption
-}
+import chalk from "chalk";
+import type { DefaultOptionPrompts, TInvoice } from "../types/types";
+import { getConfig } from ".";
 
 class Invoice {
 
@@ -23,19 +14,45 @@ class Invoice {
     sortCode: {
       type: "input",
       message: "Enter your sort code",
-      validate: val => val.length == 8 && val.includes('-') && !isNaN(parseInt(val.replaceAll('-', '')))
+      validate: val => {
+        const sortCodePattern = /^\d{2}-\d{2}-\d{2}$/;
+        return sortCodePattern.test(val) || "Sort code must be in the format XX-XX-XX (e.g., 12-34-56)";
+      }
     },
     bankNum: {
       type: "number",
       message: "Enter your bank account number",
-      validate: num => num.toString().length == 8
+      validate: num => {
+        const bankNumStr = num.toString();
+        return /^\d{8}$/.test(bankNumStr) || "Bank account number must be exactly 8 digits long";
+      }
     },
     fullName: {
       type: "input",
-      message: "Enter your fullname",
-      validate: str => str.includes(' ') && str.length > 5
+      message: "Enter your full name",
+      validate: str => {
+        const fullNamePattern = /^[a-zA-Z]+([ '-][a-zA-Z]+)+$/;
+        return fullNamePattern.test(str) || "Full name must contain at least two parts (e.g., John Doe) and only letters, spaces, hyphens, or apostrophes";
+      }
     },
-  }
+    address: {
+      type: "input",
+      message: "Enter your line of address",
+      validate: str => {
+        const addressPattern = /^[a-zA-Z0-9\s,.\-]+$/;
+        return (str.length >= 5 && addressPattern.test(str)) || "Address must be at least 5 characters long and can contain letters, numbers, spaces, commas, and periods.";
+      }
+    },
+    postcode: {
+      type: "input",
+      message: "Enter your postcode",
+      validate: str => {
+        const postcodePattern = /^([A-Z]{1,2}\d{1,2}|[A-Z]{1,2}\d{1,2}[A-Z]?)\s?\d[A-Z]{2}$/i;
+        return postcodePattern.test(str) || "Postcode must be in a valid format (e.g., AB1 2CD).";
+      }
+    }
+    
+  };
 
   async createInvoice(useDefaultValues = true) {
     try {
@@ -56,7 +73,8 @@ class Invoice {
         choices: templates,
       }]).then(r => r.template) : templates[0]
 
-      const html = await new HTML().create(template)
+      const editor = new HTML()
+      const html = await editor.create(template)
       if (!html) throw new Error('Invalid template')
 
       const answers = await inquirer.prompt([
@@ -64,12 +82,13 @@ class Invoice {
           type: "input",
           name: "companyName",
           message: "Enter your company name:",
+          validate: value => value.trim().length > 2 || "Company name must be at least 3 characters long",
         },
         {
           type: "number",
           name: "numItems",
           message: "How many items do you want to add?",
-          validate: value => value && value > 0 || "Must be at least 1 item",
+          validate: value => Number.isInteger(value) && value && value > 0 || "Must be a whole number greater than 0",
         },
       ]);
 
@@ -80,6 +99,7 @@ class Invoice {
             type: "input",
             name: "itemName",
             message: `Enter the name for item ${i + 1}:`,
+            validate: value => value.trim().length > 1 || "Item name must be at least 2 characters long",
           },
           {
             type: "number",
@@ -91,16 +111,23 @@ class Invoice {
         items.push(itemDetails);
       }
 
-      const config = fs.readJsonSync(DEFAULT_PATH);
+      const config = getConfig()
 
-      const invoice = {
+      const invoice: TInvoice = {
         template: template,
         companyName: answers.companyName,
         items,
-        sortCode: useDefaultValues && config['default_values']?.['sortCode'] ? config['default_values']['sortcode'] : this.askForDefault('sortCode'),
-        fullName: useDefaultValues && config['default_values']?.['fullName'] ? config['default_values']['fullName'] : this.askForDefault('fullName'),
-        bankNum: useDefaultValues && config['default_values']?.['bankNum'] ? config['default_values']['bankNum'] : this.askForDefault('bankNum'),
         createdAt: new Date().toISOString(),
+
+        ...(useDefaultValues ? {
+          sortCode: config.default_values.sortCode,
+          fullName: config.default_values.fullName,
+          bankNum: config.default_values.bankNum
+        } : {
+          sortCode: await this.askForDefault('sortCode'),
+          fullName: await this.askForDefault('fullName'),
+          bankNum: await this.askForDefault('bankNum')
+        })
       };
 
       let invoiceHistory = [];
@@ -111,10 +138,15 @@ class Invoice {
       invoiceHistory.push(invoice);
       fs.writeJsonSync(INVOICE_PATH, invoiceHistory, { spaces: 2 });
 
-      logger.info("Invoice successfully created!");
-    } catch (e) {
-      return mainMenu()
+      invoice['id'] = invoiceHistory.length
 
+      const outpath = await editor.editor(html, invoice)
+      if (!outpath) throw new Error('failed to convert')
+
+      logger.success("Invoice successfully created! ", outpath);
+    } catch (e) {
+      logger.debug().error(`${e}`)
+      return mainMenu()
     }
   }
 
@@ -124,8 +156,9 @@ class Invoice {
       logger.info("No invoice history found.");
     } else {
       const invoiceHistory = fs.readJsonSync(INVOICE_PATH);
-      logger.info("Invoice History:");
-      console.log(invoiceHistory);
+      console.log(
+        chalk.blue(JSON.stringify(invoiceHistory, null, 2))
+      )
     }
   }
 
@@ -137,45 +170,31 @@ class Invoice {
         ...this.defaultOptionPrompts[key]
       }
     ])
-
-    logger.debug().info(`value: ${JSON.stringify(value)}, key: ${key}, keyval: ${value[key]}`)
-
     return value[key]
   }
 
-
   async setupDefaultValues(args?: string[]) {
-    logger.debug().info(`Args: ${JSON.stringify(args)}`)
+    const config = getConfig()
 
-    const config = fs.readJsonSync(DEFAULT_PATH)
+    args = args?.length ? args : Object.keys(this.defaultOptionPrompts).map(o => o.toLowerCase())
 
-    if (args?.length) {
-      for (const arg of args) {
-        const key = Object.keys(this.defaultOptionPrompts).find(o => o.toLowerCase() === arg)
-        if (!key) {
-          logger.error(`Can't edit a value that doesn't exist: ${arg}`)
-          continue
-        }
-
-        config['default_values'] = {
-          ...config['default_values'],  // Preserve existing default values
-          [key]: await this.askForDefault(key as keyof DefaultOptionPrompts)
-        }
+    for (const arg of args) {
+      const key = Object.keys(this.defaultOptionPrompts).find(o => o.toLowerCase() === arg)
+      if (!key) {
+        logger.error(`Can't edit a value that doesn't exist: ${arg}`)
+        continue
       }
 
-      fs.writeJsonSync(DEFAULT_PATH, config, { spaces: 2 })
-      process.exit(0)
-    } else {
       config['default_values'] = {
-        fullName: await this.askForDefault('fullName'),
-        bankNum: await this.askForDefault('bankNum'),
-        sortCode: await this.askForDefault('sortCode')
+        ...config['default_values'],
+        [key]: await this.askForDefault(key as keyof DefaultOptionPrompts)
       }
 
       fs.writeJsonSync(DEFAULT_PATH, config, { spaces: 2 })
-      process.exit(0)
     }
+
+    process.exit(0)
   }
 }
 
-export default Invoice;
+export default new Invoice();
